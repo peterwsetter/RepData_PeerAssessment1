@@ -1,10 +1,5 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-author: "Peter W Setter"
-output: 
-  html_document:
-    keep_md: true
----
+# Reproducible Research: Peer Assessment 1
+Peter W Setter  
 ### Introduction
 From the assignment description:
 >It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the “quantified self” movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
@@ -13,15 +8,33 @@ In this assignment, we will perform a simple analysis on one individual's walkin
 
 ### Loading packages
 We start by loading the packages we'll need to perform our analysis.
-```{r}
+
+```r
 library(dplyr)
+```
+
+```
+## 
+## Attaching package: 'dplyr'
+## 
+## The following object is masked from 'package:stats':
+## 
+##     filter
+## 
+## The following objects are masked from 'package:base':
+## 
+##     intersect, setdiff, setequal, union
+```
+
+```r
 library(lubridate)
 library(ggplot2)
 ```
 
 ### Loading and preprocessing the data
 We start by unzipping the file. In one line, we read the unzipped flat file and convert the resulting dataframe into a dplyr data frame tbl.
-```{r, cahce=TRUE}
+
+```r
 unzip("activity.zip")
 activity.data <- tbl_df(read.csv("activity.csv", header=TRUE))
 ```
@@ -29,39 +42,52 @@ activity.data <- tbl_df(read.csv("activity.csv", header=TRUE))
 We note that there are a number of missing values. (Coded as `NA`.)
 
 Before starting the analysis, we check the structure of each column.
-```{r}
+
+```r
 str(activity.data)
 ```
 
+```
+## Classes 'tbl_df', 'tbl' and 'data.frame':	17568 obs. of  3 variables:
+##  $ steps   : int  NA NA NA NA NA NA NA NA NA NA ...
+##  $ date    : Factor w/ 61 levels "2012-10-01","2012-10-02",..: 1 1 1 1 1 1 1 1 1 1 ...
+##  $ interval: int  0 5 10 15 20 25 30 35 40 45 ...
+```
+
 The date column is a factor, so we convert it to a POSIXct date.
-```{r, cache=TRUE}
+
+```r
 activity.data$date <- ymd(activity.data$date)
 ```
 
 Later, in the analysis, we will compare the number of steps taken on particular days of the week, so we create a new column called `daytype` using `mutate` and `wday`. `daytype` codes each date as either `weekend` or `weekday`.
-```{r}
+
+```r
 activity.data <- activity.data %>% 
         mutate(daytype = as.factor(ifelse(wday(date) %in% c(1,7), "weekend", "weekday")))
 ```
 
 ### What is mean and median total number of steps taken per day?
 To begin our analysis, we determine the total number of steps taken per day. We'll use dplyr to create a new data frame tbl with this aggregation.
-```{r}
+
+```r
 daily.totals <- activity.data %>%
                         group_by(date) %>%
                         summarise(total.steps = sum(steps, na.rm=TRUE))
 ```
 
 We're interested in determining the mean and median steps per day.
-```{r}
+
+```r
 mean.steps <- mean(daily.totals$total.steps)
 median.steps <- median(daily.totals$total.steps)
 ```
 
-The mean is `r mean.steps` steps per day and the median is `r median.steps` steps per day.
+The mean is 9354.2295082 steps per day and the median is 10395 steps per day.
 
 We'll create a histogram summarizing the data, including the mean and median values.
-```{r}
+
+```r
 ggplot(daily.totals, aes(date, total.steps)) + 
         geom_histogram(stat="identity", fill='grey') +
         geom_hline(yintercept=mean.steps, color='red') +
@@ -74,12 +100,15 @@ ggplot(daily.totals, aes(date, total.steps)) +
         theme_bw()      
 ```
 
+![](PA1_template_files/figure-html/unnamed-chunk-8-1.png) 
+
 The histogram shows that there is considerable variation between days. In addition, there appears to be several days when no data was collected.
 
 ### What is the average daily activity pattern?
 We next turn our attention to the daily activity pattern, that is, the average number of steps taken during each time interval. We'll calculate and store these values in a new data frame tbl called `daily.activity`.
 
-```{r}
+
+```r
 daily.activity <- activity.data %>%
                         group_by(interval) %>%
                         summarise(avg.steps = mean(steps, na.rm=TRUE))
@@ -87,33 +116,40 @@ daily.activity <- activity.data %>%
 
 We'll visualize the daily activity averages and determine which interval has the highest average number of steps.
 
-```{r}
+
+```r
 ggplot(daily.activity, aes(x=interval, y=avg.steps)) +
         geom_line() +
         labs(title="Daily Activity", x="Interval", y='Average Steps') +
         theme_bw()
+```
 
+![](PA1_template_files/figure-html/unnamed-chunk-10-1.png) 
+
+```r
 max.interval <- as.numeric(daily.activity[which.max(daily.activity$avg.steps),1])
 ```
 
-Based on the results, the interval with the highest average steps is `r max.interval`.
+Based on the results, the interval with the highest average steps is 835.
 
-Examining the graph, there is little activity between time intervals 0 and 500. The intervals around `r max.interval` are a peak in activity.
+Examining the graph, there is little activity between time intervals 0 and 500. The intervals around 835 are a peak in activity.
 
 ### Imputing missing values
 We saw earlier that the data set contains `NA` values, which will affect our median and mean data. We will first determine the number of `NA` values, then impute the values using our averages from `daily.activity`.
 
-```{r}
+
+```r
 total.na <- sum(is.na(activity.data$steps))
 total.obs <- nrow(activity.data)
 percent.na <- round(total.na/total.obs * 100)
 ```
 
-Of the `r total.obs` intervals, there were `r total.na` `NA` values or `r percent.na`%.
+Of the 17568 intervals, there were 2304 `NA` values or 13%.
 
 We'll now create a completed data set, called `imputed.data`, which replaces `NA` values based by the average number of steps for that interval found in `daily.activity`.
 
-```{r, cache=TRUE}
+
+```r
 imputed.data <- activity.data
 for(row in 1:nrow(imputed.data)) {
         if(is.na(imputed.data[row,1])) {
@@ -125,7 +161,8 @@ for(row in 1:nrow(imputed.data)) {
 
 As we did before, we'll create a data frame tbl with the totals for each day, then calculate the mean and median values. In addition, we'll compare the imputed mean and median with the mean and median from the original data set. 
 
-```{r}
+
+```r
 imputed.totals <- imputed.data %>%
                         group_by(date) %>%
                         summarise(total.steps = sum(steps, na.rm=TRUE))
@@ -136,10 +173,11 @@ diff.means <- imputed.mean - mean.steps
 diff.median <- imputed.median - median.steps
 ```
 
-The mean is `r imputed.mean` steps per day and the median is `r imputed.median` steps per day, which are `r diff.means` steps and `r diff.median` steps greater than we calculated for the original data set.
+The mean is 1.0766189\times 10^{4} steps per day and the median is 1.0766189\times 10^{4} steps per day, which are 1411.959171 steps and 371.1886792 steps greater than we calculated for the original data set.
 
 We'll create a histogram summarizing the imputed data, including the mean and median values.
-```{r}
+
+```r
 ggplot(imputed.totals, aes(date, total.steps)) + 
         geom_histogram(stat="identity", fill='grey') +
         geom_hline(yintercept=imputed.mean, color='red') +
@@ -152,12 +190,15 @@ ggplot(imputed.totals, aes(date, total.steps)) +
         theme_bw() 
 ```
 
+![](PA1_template_files/figure-html/unnamed-chunk-14-1.png) 
+
 Interestingly, with the imputed values, there appears to be two days with nearly no activity. 
 
 ### Are there differences in activity patterns between weekdays and weekends?
 The final step of the analysis will be to compare the average steps taken during weekdays and weekends. We start by creating a new data frame tbl that seprates weekdays and weekends. We then graph the data with a panel for each part of the week.
 
-```{r}
+
+```r
 daytype.activity <- activity.data %>%
                         group_by(interval, daytype) %>%
                         summarize(avg.steps = mean(steps, na.rm=TRUE))
@@ -169,4 +210,6 @@ ggplot(daytype.activity, aes(x=interval, y=avg.steps)) +
         theme_bw()
 ```
 
-On weekends, activity starts later in the day, but the peak activity remains around `r max.interval`. Compared to weekdays, there appears to be more activity on the weekends.
+![](PA1_template_files/figure-html/unnamed-chunk-15-1.png) 
+
+On weekends, activity starts later in the day, but the peak activity remains around 835. Compared to weekdays, there appears to be more activity on the weekends.
