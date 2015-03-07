@@ -2,6 +2,7 @@
 Peter W Setter  
 ### Introduction
 From the assignment description:
+
 >It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the “quantified self” movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
 
 In this assignment, we will perform a simple analysis on one individual's walking activity. Walking activity was recorded as the number of steps taken during a 5-minute interval during the day.
@@ -39,8 +40,6 @@ unzip("activity.zip")
 activity.data <- tbl_df(read.csv("activity.csv", header=TRUE))
 ```
 
-We note that there are a number of missing values. (Coded as `NA`.)
-
 Before starting the analysis, we check the structure of each column.
 
 ```r
@@ -54,24 +53,36 @@ str(activity.data)
 ##  $ interval: int  0 5 10 15 20 25 30 35 40 45 ...
 ```
 
+We note that there are a number of missing values. (Coded as `NA`.)
+
 The date column is a factor, so we convert it to a POSIXct date.
 
 ```r
 activity.data$date <- ymd(activity.data$date)
 ```
 
+The biggest challenge of the data set is the `interval` column. Close examination shows that it reports the time using the 24-hour convention, with leading zeros removed. For example, the value in the first row is 0, which corresponds to 00:00. The value in the second row is 5, which corresponds to 00:05. 
+
+`Interval` was used to create `hour` via the `mutate` function. Each value was integer divided by 100 to produce the hour, which was added to the remainder divided by 60.  
+
 Later, in the analysis, we will compare the number of steps taken on particular days of the week, so we create a new column called `daytype` using `mutate` and `wday`. `daytype` codes each date as either `weekend` or `weekday`.
 
+These mutations are performed and the columns of interest are selected to create a new data frame tbl called `activity.data2`.
+
+
 ```r
-activity.data <- activity.data %>% 
-        mutate(daytype = as.factor(ifelse(wday(date) %in% c(1,7), "weekend", "weekday")))
+activity.data2 <- activity.data %>%
+        mutate(hour = interval %/% 100 + (interval %% 100)/60) %>%        
+        mutate(daytype = as.factor(ifelse(wday(date) %in% c(1,7), "weekend", "weekday"))) %>%
+        select(steps, date, hour, daytype)
 ```
+
 
 ### What is mean and median total number of steps taken per day?
 To begin our analysis, we determine the total number of steps taken per day. We'll use dplyr to create a new data frame tbl with this aggregation.
 
 ```r
-daily.totals <- activity.data %>%
+daily.totals <- activity.data2 %>%
                         group_by(date) %>%
                         summarise(total.steps = sum(steps, na.rm=TRUE))
 ```
@@ -109,8 +120,8 @@ We next turn our attention to the daily activity pattern, that is, the average n
 
 
 ```r
-daily.activity <- activity.data %>%
-                        group_by(interval) %>%
+daily.activity <- activity.data2 %>%
+                        group_by(hour) %>%
                         summarise(avg.steps = mean(steps, na.rm=TRUE))
 ```
 
@@ -118,9 +129,9 @@ We'll visualize the daily activity averages and determine which interval has the
 
 
 ```r
-ggplot(daily.activity, aes(x=interval, y=avg.steps)) +
+ggplot(daily.activity, aes(hour, avg.steps)) +
         geom_line() +
-        labs(title="Daily Activity", x="Interval", y='Average Steps') +
+        labs(title="Daily Activity", x="Hour", y='Average Steps') +
         theme_bw()
 ```
 
@@ -130,17 +141,17 @@ ggplot(daily.activity, aes(x=interval, y=avg.steps)) +
 max.interval <- as.numeric(daily.activity[which.max(daily.activity$avg.steps),1])
 ```
 
-Based on the results, the interval with the highest average steps is 835.
+Based on the results, the interval with the highest average steps is 8.5833333.
 
-Examining the graph, there is little activity between time intervals 0 and 500. The intervals around 835 are a peak in activity.
+Examining the graph, there is little activity between time intervals 0 and 500. The intervals around 8.5833333 are a peak in activity.
 
 ### Imputing missing values
 We saw earlier that the data set contains `NA` values, which will affect our median and mean data. We will first determine the number of `NA` values, then impute the values using our averages from `daily.activity`.
 
 
 ```r
-total.na <- sum(is.na(activity.data$steps))
-total.obs <- nrow(activity.data)
+total.na <- sum(is.na(activity.data2$steps))
+total.obs <- nrow(activity.data2)
 percent.na <- round(total.na/total.obs * 100)
 ```
 
@@ -150,11 +161,11 @@ We'll now create a completed data set, called `imputed.data`, which replaces `NA
 
 
 ```r
-imputed.data <- activity.data
+imputed.data <- activity.data2
 for(row in 1:nrow(imputed.data)) {
         if(is.na(imputed.data[row,1])) {
                 int <- as.numeric(imputed.data[row, 3])
-                imputed.data[row,1] <- daily.activity[daily.activity$interval == int,2]
+                imputed.data[row,1] <- daily.activity[daily.activity$hour == int,2]
         }
 }
 ```
@@ -199,17 +210,17 @@ The final step of the analysis will be to compare the average steps taken during
 
 
 ```r
-daytype.activity <- activity.data %>%
-                        group_by(interval, daytype) %>%
+daytype.activity <- activity.data2 %>%
+                        group_by(hour, daytype) %>%
                         summarize(avg.steps = mean(steps, na.rm=TRUE))
 
-ggplot(daytype.activity, aes(x=interval, y=avg.steps)) +
+ggplot(daytype.activity, aes(x=hour, y=avg.steps)) +
         geom_line() +
         facet_grid(daytype ~ .) +
-        labs(title="Daily Activity Comparison", x="Interval", y='Average Steps') +
+        labs(title="Daily Activity Comparison", x="Hour", y='Average Steps') +
         theme_bw()
 ```
 
 ![](PA1_template_files/figure-html/unnamed-chunk-15-1.png) 
 
-On weekends, activity starts later in the day, but the peak activity remains around 835. Compared to weekdays, there appears to be more activity on the weekends.
+On weekends, activity starts later in the day, but the peak activity remains around 8.5833333. Compared to weekdays, there appears to be more activity on the weekends.
